@@ -1,0 +1,50 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flock-off-traps",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
+  },
+  // Hourly sweep of expired reports and old rate-limit rows.
+  "triggers": { "crons": ["17 * * * *"] },
+  // The privacy policy is bundled from docs/ so the worker serves it at /privacy.
+  "rules": [{ "type": "Text", "globs": ["**/*.html"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "flock-off-traps",
+      // Run `npm run db:create` and paste the database_id it prints here.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  // Edge rate limits per client (IPv4 address, or IPv6 /64), checked before any database work.
+  // Sized for floods, not people: mobile carriers put thousands of phones behind one IPv4 address,
+  // and the app polls once a minute while driving. Periods must be 10 or 60 seconds.
+  "ratelimits": [
+    { "name": "WRITE_LIMIT", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
+    { "name": "READ_LIMIT", "namespace_id": "1002", "simple": { "limit": 300, "period": 60 } }
+  ],
+  "vars": {
+    // Minutes a fresh report stays live without confirmations. The app mirrors this (TRAP_TTL_MS).
+    "TRAP_TTL_MINUTES": "120",
+    // Each "still there" vote extends the report by this many minutes, up to MAX_LIFE_MINUTES total.
+    "CONFIRM_EXTEND_MINUTES": "45",
+    "MAX_LIFE_MINUTES": "360",
+    // A new report within this many meters of a live one is treated as a confirmation, not a duplicate.
+    "MERGE_RADIUS_M": "150",
+    // Unverified camera sightings: days, not minutes. Mappers verify them on OpenStreetMap in the meantime.
+    "CAMERA_TTL_DAYS": "14",
+    "CAMERA_CONFIRM_EXTEND_DAYS": "7",
+    "CAMERA_MAX_LIFE_DAYS": "60",
+    "CAMERA_MERGE_RADIUS_M": "60",
+    // Shown as the contact on the privacy policy page. A URL or an email address.
+    "CONTACT": "https://github.com/Kaschak-Innovations/flock-off"
+  }
+  // Secrets (set with `wrangler secret put`, never in this file):
+  //   REPORT_KEY  shared key the app signs requests with (same value as EXPO_PUBLIC_REPORT_KEY in eas.json).
+  //               When unset, unsigned requests are accepted and /health reports "signing": false.
+}

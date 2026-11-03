@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flock Off — Privacy Policy</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0A0B0E; color: #FFFFFF; font: 17px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 720px; margin: 0 auto; padding: 40px 20px 64px; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 32px 0 8px; }
+  p, li { color: #D9D9DE; }
+  .meta { color: #B9BDC5; font-size: 15px; margin-bottom: 24px; }
+  .box { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.13); border-radius: 16px; padding: 16px 20px; margin: 20px 0; }
+  .box p { margin: 0; color: #FFFFFF; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.10); }
+  th { color: #B9BDC5; font-weight: 600; }
+  a { color: #FFB300; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 14px; color: #FFFFFF; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Flock Off Privacy Policy</h1>
+  <p class="meta">Effective November 3, 2026 · Applies to the Flock Off app for Android and iOS and its report server</p>
+
+  <div class="box">
+    <p>Short version: Flock Off uses your location on your phone to warn you about license plate readers, speed cameras and speed traps, including while the app is closed. Your location is not uploaded, stored on a server, sold or shared. The only things that leave your phone are the reports you choose to send, with no account or identity attached.</p>
+  </div>
+
+  <h2>Who we are</h2>
+  <p>Flock Off is made by Glitch'd. Contact: <a href="https://github.com/Kaschak-Innovations/flock-off">https://github.com/Kaschak-Innovations/flock-off</a>. Flock Off is not affiliated with Flock Safety or any camera operator.</p>
+
+  <h2>What the app does with your location</h2>
+  <p>With your permission, the app reads your phone's location, including in the background when the app is closed or not in use, and compares it with camera locations stored on the phone. When you are near one, the phone shows a notification. This is the app's core feature and the reason it asks for background location access ("Allow all the time" on Android, "Always" on iPhone).</p>
+  <ul>
+    <li>Your location is processed on your phone only. It is never sent to our server or anyone else by the app.</li>
+    <li>The app keeps a local history of the alerts it showed you (the camera's location, distance and time) so you can review them. That history stays on your phone and you can clear it by deleting the app.</li>
+    <li>If you turn location access off, the app stops warning you. Nothing else changes.</li>
+  </ul>
+
+  <h2>What leaves your phone</h2>
+  <table>
+    <tr><th>When</th><th>What is sent</th><th>To whom</th><th>Why</th></tr>
+    <tr><td>On first use and as you move (about every 9 miles) or weekly</td><td>A bounding box around your approximate area (roughly 25 miles wide), no exact position</td><td>OpenStreetMap's Overpass API, a public map service</td><td>To download camera and speed-limit data for your area</td></tr>
+    <tr><td>Only when you tap "Flock camera here" or "Speed trap here"</td><td>The reported spot (latitude and longitude), your heading, the time, the report kind, and a one-way hash of a random ID the app generated at install</td><td>The Flock Off report server (Cloudflare Workers)</td><td>To warn other drivers about the spot. The hashed ID is used only to limit how many reports one install can send and to count one vote per install</td></tr>
+    <tr><td>Only when you report a camera and have "Post camera reports as OpenStreetMap notes" turned on (on by default; you can turn it off in Settings)</td><td>The reported spot and your heading, as a public map note</td><td>OpenStreetMap</td><td>So volunteer mappers can verify the camera and add it to the public map. Notes on OpenStreetMap are public and governed by <a href="https://wiki.osmfoundation.org/wiki/Privacy_Policy">OpenStreetMap's privacy policy</a></td></tr>
+    <tr><td>When an alert is prepared</td><td>The camera's coordinates (not yours)</td><td>Your phone's maps service (Apple or Google), through the operating system</td><td>To put a street name in the alert, for example "Ahead on Route 4". Governed by Apple's or Google's privacy policy</td></tr>
+    <tr><td>When you tap an alert</td><td>The camera's coordinates and a label</td><td>Your default maps app</td><td>To show the spot on a map</td></tr>
+  </table>
+  <p>The app has no account system, no advertising, no analytics and no third-party tracking SDKs.</p>
+
+  <h2>The report server</h2>
+  <p>Reports are anonymous. The server stores the reported spot, its kind, timestamps, confirmation and "gone" votes, and the hashed install ID. It does not store your position, your IP address beyond the standard short-lived logs of the hosting provider (Cloudflare), or anything that identifies you. Speed trap reports expire within hours and camera reports within weeks; expired reports are deleted automatically within a day. Rate limiting uses your IP address for the duration of the request only.</p>
+
+  <h2>Data retention and deletion</h2>
+  <ul>
+    <li>Everything on your phone (camera cache, settings, alert history, your own reports) is deleted when you delete the app.</li>
+    <li>Reports on the server expire and are deleted as described above. Because reports carry no identity, we cannot look up which reports came from you. If you want a specific report removed sooner, contact us with its location and time.</li>
+    <li>OpenStreetMap notes are public contributions to OpenStreetMap and are governed by its policies; we cannot delete them for you.</li>
+  </ul>
+
+  <h2>Permissions the app asks for</h2>
+  <ul>
+    <li><strong>Location (while using and always):</strong> to warn you about cameras, including with the app closed.</li>
+    <li><strong>Notifications:</strong> to show the warnings.</li>
+    <li><strong>Foreground service (Android) / background location mode (iOS):</strong> drive mode reads GPS continuously while you drive so warnings arrive ahead of the camera. Android shows a persistent "Drive mode on" notification while this runs.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Flock Off is intended for licensed drivers and is not directed at children under 13. We do not knowingly collect information from children.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the new version will be posted at this address with a new effective date. Material changes will also be noted in the app's release notes.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or removal requests: <a href="https://github.com/Kaschak-Innovations/flock-off">https://github.com/Kaschak-Innovations/flock-off</a></p>
+
+  <p class="meta">Camera data © OpenStreetMap contributors, available under the Open Database License.</p>
+</main>
+</body>
+</html>

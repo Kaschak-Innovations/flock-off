@@ -1,0 +1,2 @@
+# Copy to .dev.vars for local `npm run dev`. In production use `wrangler secret put REPORT_KEY`.
+REPORT_KEY=change-me-to-a-long-random-string

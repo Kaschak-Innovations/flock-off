@@ -1,0 +1,19 @@
+{
+  "name": "flock-off-traps",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "db:create": "wrangler d1 create flock-off-traps",
+    "db:init": "wrangler d1 execute flock-off-traps --remote --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute flock-off-traps --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wrangler": "^4.0.0"
+  }
+}

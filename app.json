@@ -12,7 +12,8 @@
       "supportsTablet": false,
       "icon": "./assets/images/icon.png",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["location", "audio"]
       },
       "entitlements": {
         "com.apple.developer.usernotifications.time-sensitive": true
@@ -71,10 +72,12 @@
         {
           "color": "#0B0B0D",
           "defaultChannel": "alerts",
-          "enableRemoteNotifications": false
+          "enableRemoteNotifications": false,
+          "sounds": ["./assets/sounds/chime.wav", "./assets/sounds/pulse.wav"]
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
 
@@ -6,15 +7,18 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Chip, Group, Notice, NumberField, Row, Screen, TextField, ToggleRow, type Tone } from '@/components/ui';
 import { PRIVACY_URL, PROJECT_URL } from '@/config';
 import { Spacing, TabColors } from '@/constants/theme';
+import { liveCountdownSupported } from '@/alerts/live';
 import { syncLimitsAround } from '@/data/limits';
 import { syncAround } from '@/data/overpass';
 import { clearCameras, clearLimitDrops } from '@/db/db';
 import { isMonitoring, refreshGeofences } from '@/engine/geofence';
 import { currentPosition } from '@/engine/monitoring';
+import { PRO_FALLBACK_PRICE, usePro } from '@/pro/pro';
 import { useSettings } from '@/store/settings';
 
 export default function SettingsScreen() {
   const [settings, update] = useSettings();
+  const pro = usePro();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; tone: Tone } | null>(null);
 
@@ -39,7 +43,7 @@ export default function SettingsScreen() {
 
   const set = async <K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) => {
     await update({ [key]: value });
-    if (['includeAlpr', 'includeSpeedCameras', 'includeLiveTraps', 'includeCameraReports', 'geofenceRadiusM'].includes(key as string)) {
+    if (['includeAlpr', 'includeSpeedCameras', 'includeLiveTraps', 'includeCameraReports', 'geofenceRadiusM', 'autoDrive'].includes(key as string)) {
       await reapply();
     }
   };
@@ -64,9 +68,43 @@ export default function SettingsScreen() {
 
   const imperial = settings.units === 'imperial';
 
+  /** Pro toggles open the Pro page when Pro is not unlocked. */
+  const proToggle = <K extends 'voiceAlerts' | 'autoDrive' | 'liveCountdown'>(key: K) => (v: boolean) => {
+    if (!pro) {
+      router.push('/pro');
+      return;
+    }
+    if (key === 'autoDrive' && v && !settings.monitoringEnabled) {
+      setMessage({ text: 'Automatic drive mode works through Monitoring. Turn Monitoring on from the Status tab.', tone: 'info' });
+    }
+    set(key, v);
+  };
+
   return (
     <Screen header={header}>
       {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+
+      <Group label="Pro">
+        <Row
+          label={pro ? 'Flock Off Pro' : 'Unlock Flock Off Pro'}
+          hint={pro ? 'Unlocked. Thank you.' : `Spoken alerts, automatic drive mode, trip packs and more. ${PRO_FALLBACK_PRICE} once.`}
+          bold
+          icon="chevron"
+          onPress={() => router.push('/pro')}
+        />
+        <ToggleRow label="Spoken alerts" hint="Reads each alert out loud." value={!!pro && settings.voiceAlerts} onValueChange={proToggle('voiceAlerts')} />
+        <ToggleRow
+          label="Automatic drive mode"
+          hint="Starts when you start driving, stops after you park. Needs Monitoring on."
+          value={!!pro && settings.autoDrive}
+          onValueChange={proToggle('autoDrive')}
+        />
+        {liveCountdownSupported ? (
+          <ToggleRow label="Live countdown" hint="A silent notification counting down to the next camera in drive mode." value={!!pro && settings.liveCountdown} onValueChange={proToggle('liveCountdown')} />
+        ) : null}
+        <Row label="Trip packs" hint="Download whole states for road trips." icon="chevron" onPress={() => router.push('/packs')} />
+        <Row label="Alert tuning" hint="Distance and sound per alert type, quiet hours, quiet near home." icon="chevron" onPress={() => router.push('/tuning')} last />
+      </Group>
 
       <Group label="Warn me about">
         <ToggleRow label="Plate readers" hint="Flock Safety and other ALPR cameras mapped in OpenStreetMap." value={settings.includeAlpr} onValueChange={(v) => set('includeAlpr', v)} />

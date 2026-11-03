@@ -96,6 +96,11 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   if (!alertCols.some((c) => c.name === 'seen_at')) {
     await db.execAsync('ALTER TABLE alerts ADD COLUMN seen_at INTEGER');
   }
+  // Trip packs (Pro) tag the cameras they bring in, so a pack can be removed again.
+  const camCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(cameras)');
+  if (!camCols.some((c) => c.name === 'pack')) {
+    await db.execAsync('ALTER TABLE cameras ADD COLUMN pack TEXT');
+  }
   // Installs created before live camera reports existed lack the kind column.
   const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(traps)');
   if (!cols.some((c) => c.name === 'kind')) {
@@ -134,12 +139,12 @@ export async function upsertCameras(rows: CameraRow[]): Promise<void> {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
     const stmt = await db.prepareAsync(
-      `INSERT INTO cameras (id, kind, lat, lon, direction, manufacturer, operator, tags, updated_at)
-       VALUES ($id, $kind, $lat, $lon, $direction, $manufacturer, $operator, $tags, $updated_at)
+      `INSERT INTO cameras (id, kind, lat, lon, direction, manufacturer, operator, tags, updated_at, pack)
+       VALUES ($id, $kind, $lat, $lon, $direction, $manufacturer, $operator, $tags, $updated_at, $pack)
        ON CONFLICT(id) DO UPDATE SET
          kind = excluded.kind, lat = excluded.lat, lon = excluded.lon, direction = excluded.direction,
          manufacturer = excluded.manufacturer, operator = excluded.operator, tags = excluded.tags,
-         updated_at = excluded.updated_at`,
+         updated_at = MAX(excluded.updated_at, cameras.updated_at), pack = COALESCE(excluded.pack, cameras.pack)`,
     );
     try {
       for (const r of rows) {
@@ -153,6 +158,7 @@ export async function upsertCameras(rows: CameraRow[]): Promise<void> {
           $operator: r.operator,
           $tags: r.tags,
           $updated_at: r.updated_at,
+          $pack: r.pack ?? null,
         });
       }
     } finally {
@@ -223,7 +229,15 @@ export async function getCamerasNear(
 
 export async function clearCameras(): Promise<void> {
   const db = await getDb();
-  await db.execAsync("DELETE FROM cameras; DELETE FROM meta WHERE key LIKE 'sync_%';");
+  await db.execAsync("DELETE FROM cameras; DELETE FROM meta WHERE key LIKE 'sync_%' OR key LIKE 'pack_%';");
+}
+
+/** Remove a trip pack's cameras. Ones near you come back with the next local sync. */
+export async function deletePackCameras(code: string): Promise<number> {
+  const db = await getDb();
+  const res = await db.runAsync('DELETE FROM cameras WHERE pack = ?', code);
+  await db.runAsync('DELETE FROM meta WHERE key LIKE ?', `pack_${code}_%`);
+  return res.changes;
 }
 
 /* ----------------------------------------------------------------- traps */

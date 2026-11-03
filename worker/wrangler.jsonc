@@ -24,6 +24,11 @@
       "database_id": "00000000-0000-0000-0000-000000000000"
     }
   ],
+  // Trip packs (Pro): one JSON value per US state plus an index, rebuilt nightly by
+  // .github/workflows/build-packs.yml from OpenStreetMap. The deploy workflow fills in the id.
+  "kv_namespaces": [
+    { "binding": "PACKS", "id": "00000000000000000000000000000000" }
+  ],
   // Edge rate limits per client (IPv4 address, or IPv6 /64), checked before any database work.
   // Sized for floods, not people: mobile carriers put thousands of phones behind one IPv4 address,
   // and the app polls once a minute while driving. Periods must be 10 or 60 seconds.

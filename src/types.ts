@@ -11,6 +11,8 @@ export type CameraRow = {
   operator: string | null;
   tags: string; // raw OSM tags as JSON, for the detail view
   updated_at: number;
+  /** Trip pack (state code) that brought this camera in, if any. */
+  pack?: string | null;
 };
 
 /** Live community reports cached from the worker: short-lived speed traps and longer-lived unverified cameras. */

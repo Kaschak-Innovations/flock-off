@@ -1,0 +1,69 @@
+# Rebuilds the trip packs (Pro): every mapped plate reader and speed camera per US state, from
+# OpenStreetMap via Overpass, uploaded to the worker's KV namespace. Runs nightly and on demand.
+#
+# Needs the same CLOUDFLARE_API_TOKEN secret as the deploy workflow, and the KV namespace that the
+# deploy workflow creates (deploy at least once first).
+name: Build trip packs
+
+on:
+  schedule:
+    - cron: "23 7 * * *" # 07:23 UTC, the small hours in the US
+  workflow_dispatch:
+    inputs:
+      states:
+        description: "Only these states, space separated (blank = all)"
+        required: false
+        default: ""
+
+concurrency:
+  group: build-packs
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      RAW_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      KV_TITLE: flock-off-packs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Read the API token
+        run: |
+          token="$(printf '%s' "$RAW_CF_TOKEN" | grep -oE '[A-Za-z0-9_-]{30,}' | head -1 || true)"
+          if [ -z "$token" ]; then echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret first."; exit 1; fi
+          echo "::add-mask::$token"
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Build packs from OpenStreetMap
+        env:
+          STATES: ${{ inputs.states }}
+        run: node scripts/build-packs.mjs packs-out $STATES
+
+      - run: npm ci
+        working-directory: worker
+
+      - name: Upload to KV
+        working-directory: worker
+        run: |
+          id="$(npx wrangler kv namespace list | sed -n '/^\[/,$p' | jq -r --arg t "$KV_TITLE" '.[] | select(.title == $t) | .id' | head -1)"
+          if [ -z "$id" ]; then echo "::error::KV namespace $KV_TITLE not found. Run the deploy workflow first."; exit 1; fi
+          npx wrangler kv bulk put ../packs-out/kv.json --namespace-id "$id" --remote
+          {
+            echo "### Trip packs uploaded"
+            echo ""
+            jq -r '"\(.states | length) states, \([.states[].count] | add) cameras. Failed: \(.failed | join(" "))"' ../packs-out/index.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packs
+          path: packs-out/*.json
+          retention-days: 7

@@ -1,12 +1,15 @@
 import * as Location from 'expo-location';
 
 import { fireAlert } from '@/alerts/notify';
+import { distanceFactor } from '@/alerts/tuning';
 import {
   BUBBLE_ID,
   BUBBLE_MAX_RADIUS_M,
   BUBBLE_MIN_RADIUS_M,
   GEOFENCE_SEARCH_RADIUS_KM,
   MAX_TARGET_REGIONS,
+  SENTINEL_ID,
+  SENTINEL_RADIUS_M,
   TASKS,
 } from '@/config';
 import { syncAround } from '@/data/overpass';
@@ -14,6 +17,8 @@ import { refreshTrapsNear } from '@/data/traps';
 import { getMetaNumber, getTargetById, setMeta } from '@/db/db';
 import { loadTargetsNear } from '@/engine/targets';
 import { bearingDeg, haversineM, isDirectionRelevant } from '@/geo/geo';
+import { handleSentinelExit } from '@/engine/autoDrive';
+import { isPro } from '@/pro/pro';
 import { getSettings } from '@/store/settings';
 
 /**
@@ -62,25 +67,41 @@ export async function refreshGeofences(lat: number, lon: number): Promise<Geofen
     // ignore
   }
 
+  const pro = await isPro();
+  // Automatic drive mode (Pro) spends one slot on the motion sentinel.
+  const sentinel = pro && settings.autoDrive;
+  const slots = MAX_TARGET_REGIONS - (sentinel ? 1 : 0);
+  const radiusFor = (kind: Parameters<typeof distanceFactor>[2]) => Math.round(settings.geofenceRadiusM * distanceFactor(settings, pro, kind));
+
   const targets = await loadTargetsNear(lat, lon, GEOFENCE_SEARCH_RADIUS_KM, settings);
-  const chosen = targets.slice(0, MAX_TARGET_REGIONS);
-  const next = targets[MAX_TARGET_REGIONS];
+  const chosen = targets.slice(0, slots);
+  const next = targets[slots];
 
   // The bubble must be re-centered before the (N+1)th target could matter, so its radius is the
-  // distance to that target minus the alert radius, clamped to something sane.
+  // distance to that target minus its alert radius, clamped to something sane.
   const bubbleRadiusM = Math.min(
     BUBBLE_MAX_RADIUS_M,
-    Math.max(BUBBLE_MIN_RADIUS_M, next ? next.distance_m - settings.geofenceRadiusM : BUBBLE_MAX_RADIUS_M),
+    Math.max(BUBBLE_MIN_RADIUS_M, next ? next.distance_m - radiusFor(next.kind) : BUBBLE_MAX_RADIUS_M),
   );
 
   const regions: Location.LocationRegion[] = chosen.map((t) => ({
     identifier: t.id,
     latitude: t.lat,
     longitude: t.lon,
-    radius: settings.geofenceRadiusM,
+    radius: radiusFor(t.kind),
     notifyOnEnter: true,
     notifyOnExit: false,
   }));
+  if (sentinel) {
+    regions.push({
+      identifier: SENTINEL_ID,
+      latitude: lat,
+      longitude: lon,
+      radius: SENTINEL_RADIUS_M,
+      notifyOnEnter: false,
+      notifyOnExit: true,
+    });
+  }
   regions.push({
     identifier: BUBBLE_ID,
     latitude: lat,
@@ -136,6 +157,11 @@ export type GeofenceTaskData = { eventType: Location.GeofencingEventType; region
 export async function handleGeofenceEvent(data: GeofenceTaskData): Promise<void> {
   const { eventType, region } = data;
   const id = region.identifier ?? '';
+
+  if (id === SENTINEL_ID) {
+    if (eventType === Location.GeofencingEventType.Exit) await handleSentinelExit();
+    return;
+  }
 
   if (id === BUBBLE_ID) {
     if (eventType !== Location.GeofencingEventType.Exit) return;

@@ -22,6 +22,26 @@ Reporting a camera does three things at once: saves the fix on the phone, relays
 
 Speed-limit drops come from OpenStreetMap too. OSM splits a road into a new way wherever the posted limit changes, so a drop is a node shared by two ways whose `maxspeed` differs. The app pulls ways with `maxspeed` on motorway-through-unclassified roads in a 15 km box, computes every join where the limit falls by 5 mph or more along with the direction of travel into the lower limit, and caches the points. Drive mode warns a few hundred meters before a drop of at least the configured minimum (default 15 mph) when your heading matches the road's direction within 60 degrees. Limit drops are drive-mode only: there are too many to spend geofence slots on, and they only matter while moving. See `src/data/limits.ts`.
 
+## Pro
+
+One non-consumable in-app product, `flockoff_pro` ($4.99 suggested), unlocks five driving-comfort features. Every alert, every camera type and reporting stay free; Pro never gates what the community reports depend on.
+
+- Spoken alerts. Each alert is also read aloud ("Flock camera ahead, 1,000 feet, on Route 4") with expo-speech, using its own audio session so it ducks music. iOS needs the `audio` background mode for this (set in `app.json`); mention spoken alerts in App Review notes.
+- Automatic drive mode. With Monitoring on, the geofence watcher keeps a 300 m "sentinel" circle around where the phone rests. Leaving it triggers a speed check (GPS speed, or two fixes eight seconds apart); 15 mph or more starts drive mode, anything slower re-centers the circle. Automatic sessions stop after five minutes parked and re-arm the sentinel there. Geofence exits are one of the events Android allows to start a location foreground service from the background. `src/engine/autoDrive.ts`.
+- Live countdown (Android). A silent, ongoing notification on its own low-importance channel shows the next thing ahead and its distance, updated at most every 4 seconds. iOS would need a Live Activity widget extension; not built yet. `src/alerts/live.ts`.
+- Trip packs. `.github/workflows/build-packs.yml` runs nightly (and on demand), queries Overpass once per state (`scripts/build-packs.mjs`), and uploads compact per-state JSON to the worker's KV namespace. The worker serves `/packs` and `/packs/:state`; the app's Trip packs screen downloads states into the camera cache, tagged so they can be removed. Packs carry plate readers and speed cameras; speed-limit drops and live traps still need a connection.
+- Alert tuning. Per alert type: warning distance (Near 0.6x, Normal, Early 1.6x of the geofence and drive radius) and sound (system default, chime, pulse, vibrate only; Android gets one channel per sound because channel sounds are fixed at creation). Quiet hours, and a quiet zone around a saved home spot. `src/alerts/tuning.ts`.
+
+Purchases use expo-iap (Google Play Billing / StoreKit). The entitlement is cached on the device for background tasks and re-checked with the store on every launch; purchases are acknowledged immediately, since Google refunds unacknowledged ones after three days. Development builds show an "Unlock for testing" switch on the Pro page; store builds ignore it. There is no server-side receipt check, so a determined user on a rooted phone could unlock Pro locally; at this price that is an acceptable trade for keeping the app serverless.
+
+To sell it:
+
+1. In Play Console, set up a payments profile (Settings, Payments profile). Paid products need it.
+2. Upload a build that includes expo-iap (any build from this commit on) to a testing track. Play only lets you create products after a build with the billing library is uploaded.
+3. Monetize, Products, In-app products, Create product: ID `flockoff_pro`, name "Flock Off Pro", price $4.99. Activate it.
+4. Add your Google account under Settings, License testing so test purchases are free.
+5. On iOS, create a non-consumable with the same product ID in App Store Connect.
+
 ## Repo layout
 
 ```
@@ -42,7 +62,9 @@ src/data/                Overpass camera sync, speed-limit drops, OSM notes, rep
 src/db/db.ts             SQLite schema and queries (cameras, traps, reports, roads, alert log)
 src/store/settings.ts    user settings (AsyncStorage) and the per-install random id
 src/tasks.ts             background task definitions (imported first by the root layout)
-worker/                  Cloudflare Worker + D1 for live reports (speed traps and unverified cameras)
+worker/                  Cloudflare Worker + D1 for live reports, KV for trip packs
+scripts/build-packs.mjs  nightly per-state camera packs from Overpass (run by GitHub Actions)
+src/pro/pro.ts           Pro entitlement, purchase and restore
 ```
 
 ## Design

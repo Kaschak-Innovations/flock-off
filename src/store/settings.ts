@@ -3,6 +3,18 @@ import * as Crypto from 'expo-crypto';
 import { useCallback, useEffect, useState } from 'react';
 
 import { REPORT_SERVER_URL } from '@/config';
+import type { TargetKind } from '@/types';
+
+/** How early an alert fires, per kind (Pro). Multiplies the geofence and drive-mode radius. */
+export type AlertDistance = 'near' | 'normal' | 'early';
+/** Alert sound, per kind (Pro). `default` is the system sound; `silent` vibrates only. */
+export type AlertSound = 'default' | 'chime' | 'pulse' | 'silent';
+
+export const ALERT_KINDS: TargetKind[] = ['alpr', 'speed_camera', 'trap', 'camera_report', 'limit_drop'];
+
+function perKind<T>(value: T): Record<TargetKind, T> {
+  return { alpr: value, speed_camera: value, trap: value, camera_report: value, limit_drop: value };
+}
 
 /**
  * User-tunable settings. Stored as one JSON blob in AsyncStorage so the background
@@ -37,6 +49,20 @@ export type Settings = {
   units: 'imperial' | 'metric';
   /** The user saw the background-location disclosure and tapped Continue. */
   disclosureAccepted: boolean;
+
+  /* Pro features. Ignored (defaults apply) without Pro. */
+  /** Read each alert aloud. */
+  voiceAlerts: boolean;
+  /** Start drive mode when the phone starts moving at driving speed; stop it after parking. */
+  autoDrive: boolean;
+  /** Android: a quiet notification counting down to the next camera while drive mode runs. */
+  liveCountdown: boolean;
+  kindDistance: Record<TargetKind, AlertDistance>;
+  kindSound: Record<TargetKind, AlertSound>;
+  /** No alerts between these local hours (start may be after end: 22 -> 6 spans midnight). */
+  quietHours: { enabled: boolean; startHour: number; endHour: number };
+  /** No alerts for anything within radiusM of a saved spot, typically home. */
+  homeZone: { enabled: boolean; lat: number | null; lon: number | null; radiusM: number };
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -57,6 +83,13 @@ export const DEFAULT_SETTINGS: Settings = {
   alertSound: true,
   units: 'imperial',
   disclosureAccepted: false,
+  voiceAlerts: true,
+  autoDrive: false,
+  liveCountdown: true,
+  kindDistance: perKind<AlertDistance>('normal'),
+  kindSound: perKind<AlertSound>('default'),
+  quietHours: { enabled: false, startHour: 22, endHour: 6 },
+  homeZone: { enabled: false, lat: null, lon: null, radiusM: 1600 },
 };
 
 const SETTINGS_KEY = 'flockoff.settings.v1';
@@ -67,7 +100,15 @@ export async function getSettings(): Promise<Settings> {
     const raw = await AsyncStorage.getItem(SETTINGS_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    // Nested objects merge key by key so settings saved by an older version gain new keys.
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      kindDistance: { ...DEFAULT_SETTINGS.kindDistance, ...parsed.kindDistance },
+      kindSound: { ...DEFAULT_SETTINGS.kindSound, ...parsed.kindSound },
+      quietHours: { ...DEFAULT_SETTINGS.quietHours, ...parsed.quietHours },
+      homeZone: { ...DEFAULT_SETTINGS.homeZone, ...parsed.homeZone },
+    };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

@@ -27,6 +27,7 @@ jobs:
     env:
       RAW_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DB_NAME: flock-off-traps
+      KV_TITLE: flock-off-packs
     steps:
       - uses: actions/checkout@v4
 
@@ -62,6 +63,20 @@ jobs:
           if [ -z "$id" ]; then echo "::error::Could not find or create $DB_NAME"; exit 1; fi
           echo "Using D1 database $id"
           sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.jsonc
+          grep -q "$id" wrangler.jsonc
+
+      - name: Find or create the trip-pack KV namespace
+        run: |
+          find_kv() { npx wrangler kv namespace list | sed -n '/^\[/,$p' | jq -r --arg t "$KV_TITLE" '.[] | select(.title == $t) | .id' | head -1; }
+          id="$(find_kv)"
+          if [ -z "$id" ]; then
+            echo "Creating KV namespace $KV_TITLE"
+            npx wrangler kv namespace create "$KV_TITLE" < /dev/null
+            id="$(find_kv)"
+          fi
+          if [ -z "$id" ]; then echo "::error::Could not find or create KV namespace $KV_TITLE"; exit 1; fi
+          echo "Using KV namespace $id"
+          sed -i "s/00000000000000000000000000000000/$id/" wrangler.jsonc
           grep -q "$id" wrangler.jsonc
 
       - name: Apply the schema

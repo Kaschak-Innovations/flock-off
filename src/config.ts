@@ -12,6 +12,22 @@ export const TASKS = {
 /** Identifier of the single large "bubble" region whose exit triggers a geofence refresh. */
 export const BUBBLE_ID = 'bubble';
 
+/**
+ * Automatic drive mode (Pro): a small "sentinel" region around where the phone is resting.
+ * Leaving it at driving speed starts drive mode; drive mode stops itself after the car has been
+ * parked for AUTO_DRIVE_STOP_MS. Geofence exits are one of the few events Android lets an app
+ * use to start a location foreground service from the background.
+ */
+export const SENTINEL_ID = 'sentinel';
+export const SENTINEL_RADIUS_M = 300;
+/** 15 mph: faster than running or most cycling. */
+export const AUTO_DRIVE_START_MPS = 6.7;
+/** Below 5 mph counts as stopped. */
+export const AUTO_DRIVE_MOVING_MPS = 2.2;
+export const AUTO_DRIVE_STOP_MS = 5 * 60 * 1000;
+/** Live countdown looks this far ahead for "next". */
+export const LIVE_LOOKAHEAD_KM = 5;
+
 /** iOS caps monitored regions at 20, Android at 100. One slot is reserved for the bubble. */
 export const MAX_REGIONS = Platform.OS === 'ios' ? 20 : 100;
 export const MAX_TARGET_REGIONS = MAX_REGIONS - 1;

@@ -10,17 +10,17 @@ import { StatusBar } from 'expo-status-bar';
 import { prepareAlertIcons } from '@/alerts/icons';
 import { handleNotificationResponse } from '@/alerts/notify';
 import { Colors } from '@/constants/theme';
+import { refreshEntitlement, startPurchaseListener } from '@/pro/pro';
 
 SplashScreen.preventAutoHideAsync();
 
 // Show alerts even while the app is in the foreground (you may be on the Nearby tab while driving).
+// The live countdown updates every few seconds, so it never pops up a banner.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (n) => {
+    const live = (n.request.content.data as { live?: boolean } | undefined)?.live === true;
+    return { shouldShowBanner: !live, shouldShowList: true, shouldPlaySound: !live, shouldSetBadge: false };
+  },
 });
 
 /** Tapping an alert opens the camera in the phone's default map app with a labeled pin. */
@@ -56,6 +56,15 @@ export default function RootLayout() {
     prepareAlertIcons().finally(() => SplashScreen.hideAsync());
   }, []);
 
+  // Pro: re-check what the store says on every launch (refunds, purchases on another device) and
+  // settle purchases that complete while the app is open.
+  useEffect(() => {
+    let stop: (() => void) | null = null;
+    refreshEntitlement().catch(() => {});
+    startPurchaseListener().then((s) => (stop = s));
+    return () => stop?.();
+  }, []);
+
   return (
     <ThemeProvider value={theme}>
       <StatusBar style="light" />
@@ -63,6 +72,9 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="disclosure" options={{ presentation: 'modal', gestureEnabled: false }} />
+        <Stack.Screen name="pro" />
+        <Stack.Screen name="packs" />
+        <Stack.Screen name="tuning" />
       </Stack>
     </ThemeProvider>
   );

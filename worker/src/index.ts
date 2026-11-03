@@ -10,6 +10,7 @@
  *   GET  /reports?lat&lon&radius_km[&kind]                                -> live reports near a point
  *   POST /reports/:id/vote     { vote: "still" | "gone", device_id }      -> extend or retire a report
  *   GET  /privacy                                                         -> the privacy policy page
+ *   GET  /packs, /packs/:state                                            -> trip-pack index, one state's cameras (KV)
  *   GET  /health                                                          -> { ok, signing, now }
  *   (/traps… routes are aliases kept for older app builds)
  *
@@ -335,6 +336,17 @@ async function sweep(env: Env): Promise<void> {
   console.log(JSON.stringify({ message: 'sweep', changes: results.map((r) => r.meta.changes) }));
 }
 
+/** Trip packs: prebuilt per-state camera lists. Public OpenStreetMap data, so no signature needed. */
+async function packs(path: string, env: Env): Promise<Response> {
+  const code = path === '/packs' ? null : path.slice('/packs/'.length).toUpperCase();
+  if (code !== null && !/^[A-Z]{2}$/.test(code)) return bad('Unknown state', 404);
+  const value = await env.PACKS.get(code ? `pack:${code}` : 'index', { cacheTtl: 3600 });
+  if (!value) return bad(code ? 'No pack for that state yet' : 'Packs have not been built yet', 404);
+  return new Response(value, {
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=3600' },
+  });
+}
+
 function privacyPage(env: Env): Response {
   const contact = env.CONTACT?.trim() || PRIVACY_CONTACT_IN_FILE;
   const href = contact.includes('@') && !contact.startsWith('http') ? `mailto:${contact}` : contact;
@@ -365,6 +377,10 @@ export default {
         if (path === '/reports' || path === '/traps') {
           if (!(await withinLimit(env.READ_LIMIT, ip))) return bad('Too many requests', 429);
           return await listReports(url, env);
+        }
+        if (path === '/packs' || path.startsWith('/packs/')) {
+          if (!(await withinLimit(env.READ_LIMIT, ip))) return bad('Too many requests', 429);
+          return await packs(path, env);
         }
         return bad('Not found', 404);
       }

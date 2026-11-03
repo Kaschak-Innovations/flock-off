@@ -27,7 +27,8 @@ import { useTheme } from '@/hooks/use-theme';
 
 export type IconName =
   | 'radar' | 'list' | 'pin' | 'gear' | 'bell' | 'back' | 'open' | 'chevron' | 'camera' | 'speed'
-  | 'warning' | 'locate' | 'check' | 'error' | 'shield' | 'doc' | 'car' | 'doneAll';
+  | 'warning' | 'locate' | 'check' | 'error' | 'shield' | 'doc' | 'car' | 'doneAll'
+  | 'star' | 'speaker' | 'download' | 'tune' | 'home' | 'moon' | 'timer' | 'trash';
 
 const ICONS: Record<IconName, SymbolViewProps['name']> = {
   radar: { ios: 'dot.radiowaves.left.and.right', android: 'sensors' },
@@ -48,6 +49,14 @@ const ICONS: Record<IconName, SymbolViewProps['name']> = {
   doc: { ios: 'doc.text', android: 'description' },
   car: { ios: 'car.fill', android: 'directions_car' },
   doneAll: { ios: 'checkmark.circle', android: 'done_all' },
+  star: { ios: 'star.fill', android: 'star' },
+  speaker: { ios: 'speaker.wave.2.fill', android: 'volume_up' },
+  download: { ios: 'arrow.down.circle', android: 'download' },
+  tune: { ios: 'slider.horizontal.3', android: 'tune' },
+  home: { ios: 'house.fill', android: 'home' },
+  moon: { ios: 'moon.fill', android: 'bedtime' },
+  timer: { ios: 'timer', android: 'timer' },
+  trash: { ios: 'trash', android: 'delete' },
 };
 
 /** Platform icon: SF Symbol on iOS, Material Symbol on Android, one name on both sides of the app. */

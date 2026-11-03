@@ -4,13 +4,28 @@ import { AndroidImportance, AndroidNotificationPriority, AndroidNotificationVisi
 import { Linking, Platform } from 'react-native';
 
 import { attachmentFor } from '@/alerts/icons';
+import { ensureLiveChannel } from '@/alerts/live';
+import { soundFor, suppressionReason } from '@/alerts/tuning';
+import { speak, spokenCopy } from '@/alerts/voice';
 import { AlertColors } from '@/constants/theme';
 import { alertedRecently, getCachedRoad, logAlert, setCachedRoad } from '@/db/db';
 import { cardinalFromBearing, formatDistance, timeAgo } from '@/geo/geo';
-import { getSettings } from '@/store/settings';
+import { isPro } from '@/pro/pro';
+import { getSettings, type AlertSound } from '@/store/settings';
 import { displayName, pinLabel, type Target } from '@/types';
 
 export const ALERT_CHANNEL_ID = 'alerts';
+
+/**
+ * Android binds a sound to a channel when the channel is created, so each alert sound gets its
+ * own channel. `alerts` keeps the system default sound and is the one existing installs already have.
+ */
+const SOUND_CHANNELS: Record<AlertSound, { id: string; name: string; sound: string | null }> = {
+  default: { id: ALERT_CHANNEL_ID, name: 'Camera alerts', sound: 'default' },
+  chime: { id: 'alerts-chime', name: 'Camera alerts (chime)', sound: 'chime.wav' },
+  pulse: { id: 'alerts-pulse', name: 'Camera alerts (pulse)', sound: 'pulse.wav' },
+  silent: { id: 'alerts-silent', name: 'Camera alerts (vibrate only)', sound: null },
+};
 
 /**
  * Deep link into the phone's default map app with a labeled pin on the target.
@@ -51,15 +66,18 @@ export async function openInMaps(lat: number, lon: number, label: string): Promi
 /** Call once on app start and before enabling monitoring. Safe to call repeatedly. */
 export async function ensureNotificationSetup(): Promise<boolean> {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(ALERT_CHANNEL_ID, {
-      name: 'Camera alerts',
-      description: 'Warnings when you approach a license plate reader, speed camera, reported speed trap or speed-limit drop.',
-      importance: AndroidImportance.MAX,
-      vibrationPattern: [0, 300, 150, 300],
-      lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: false,
-      sound: 'default',
-    });
+    for (const ch of Object.values(SOUND_CHANNELS)) {
+      await Notifications.setNotificationChannelAsync(ch.id, {
+        name: ch.name,
+        description: 'Warnings when you approach a license plate reader, speed camera, reported speed trap or speed-limit drop.',
+        importance: AndroidImportance.MAX,
+        vibrationPattern: [0, 300, 150, 300],
+        lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+        sound: ch.sound,
+      });
+    }
+    await ensureLiveChannel();
   }
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
@@ -81,7 +99,7 @@ export type AlertPayload = {
  * Best-effort street name for a target, cached per target. Reverse geocoding needs the network
  * and Apple throttles it, so the lookup is capped at 1.5 s and a miss is remembered as null.
  */
-async function roadFor(target: Target): Promise<string | null> {
+export async function roadFor(target: Target): Promise<string | null> {
   if (target.road) return target.road;
   const cached = await getCachedRoad(target.id);
   if (cached !== undefined) return cached;
@@ -151,26 +169,37 @@ export async function fireAlert(
   const cooldownMs = Math.max(1, settings.cooldownMin) * 60 * 1000;
   if (await alertedRecently(target.id, cooldownMs)) return false;
 
-  const { title, body } = await alertCopy(target, distanceM, bearingDegToTarget, opts.ahead ?? false, settings.units);
+  const pro = await isPro();
+  if (suppressionReason(settings, pro, target.lat, target.lon)) return false;
+
+  const ahead = opts.ahead ?? false;
+  const { title, body } = await alertCopy(target, distanceM, bearingDegToTarget, ahead, settings.units);
   const payload: AlertPayload = { targetId: target.id, kind: target.kind, lat: target.lat, lon: target.lon, label: pinLabel(target) };
   const attachment = await attachmentFor(target.kind);
+  const sound = soundFor(settings, pro, target.kind);
+  const channel = SOUND_CHANNELS[sound];
 
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
       data: payload as unknown as Record<string, unknown>,
-      sound: settings.alertSound ? 'default' : undefined,
+      sound: channel.sound ?? undefined,
       priority: AndroidNotificationPriority.MAX,
       color: AlertColors[target.kind],
       interruptionLevel: 'timeSensitive',
       vibrate: [0, 300, 150, 300],
       attachments: attachment ? [attachment] : undefined,
     },
-    // null = deliver now. On Android, naming the channel keeps the alert on the MAX-importance channel.
-    trigger: Platform.OS === 'android' ? { channelId: ALERT_CHANNEL_ID } : null,
+    // null = deliver now. On Android the channel carries importance and sound.
+    trigger: Platform.OS === 'android' ? { channelId: channel.id } : null,
   });
   await logAlert(target, distanceM);
+
+  if (pro && settings.voiceAlerts) {
+    const road = target.kind === 'limit_drop' ? target.road ?? null : await roadFor(target);
+    speak(spokenCopy(target, distanceM, ahead, settings.units, road));
+  }
   return true;
 }
 

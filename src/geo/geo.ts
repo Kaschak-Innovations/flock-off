@@ -97,8 +97,8 @@ export function cardinalFromBearing(bearing: number): string {
 
 export type Units = 'imperial' | 'metric';
 
-const FT_PER_M = 3.28084;
-const M_PER_MI = 1609.344;
+export const FT_PER_M = 3.28084;
+export const M_PER_MI = 1609.344;
 
 /**
  * Glanceable distances. Imperial (US default): feet under about a quarter mile, rounded to 50,

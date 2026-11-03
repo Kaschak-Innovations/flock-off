@@ -25,7 +25,7 @@ jobs:
       run:
         working-directory: worker
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      RAW_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DB_NAME: flock-off-traps
     steps:
       - uses: actions/checkout@v4
@@ -36,12 +36,17 @@ jobs:
           cache: npm
           cache-dependency-path: worker/package-lock.json
 
-      - name: Check the API token is set
+      # Pasted secrets often carry a line break or extra text (Cloudflare's "test this token" curl
+      # command, for example). Pull out the token itself so one stray newline can't break every call.
+      - name: Read the API token
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret first."
+          token="$(printf '%s' "$RAW_CF_TOKEN" | grep -oE '[A-Za-z0-9_-]{30,}' | head -1 || true)"
+          if [ -z "$token" ]; then
+            echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret first (it is missing or does not contain a token)."
             exit 1
           fi
+          echo "::add-mask::$token"
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
 
       - run: npm ci
 
@@ -74,7 +79,7 @@ jobs:
           REPORT_KEY: ${{ secrets.REPORT_KEY }}
         run: |
           if [ -n "$REPORT_KEY" ]; then
-            printf '%s' "$REPORT_KEY" | npx wrangler secret put REPORT_KEY
+            printf '%s' "$REPORT_KEY" | tr -d '[:space:]' | npx wrangler secret put REPORT_KEY
           else
             echo "REPORT_KEY secret not set: the worker accepts unsigned requests."
           fi

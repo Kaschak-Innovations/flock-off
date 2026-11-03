@@ -28,12 +28,11 @@ export const PROJECT_URL = 'https://github.com/Kaschak-Innovations/flock-off';
 /** OSM asks API clients to identify themselves with a project URL or contact. */
 export const USER_AGENT = `FlockOff/0.1 (+${PROJECT_URL})`;
 
-/**
- * Public privacy policy. The deployed report worker serves the same page at /privacy; set this to
- * that URL before store submission (Play Console wants one stable link). Until then it points at
- * the copy in the repo.
- */
-export const PRIVACY_URL = `${PROJECT_URL}/blob/main/docs/privacy-policy.html`;
+/** The deployed report worker (worker/). Used as the default report server in Settings. */
+export const REPORT_SERVER_URL = 'https://flock-off.jonathankaschak.workers.dev';
+
+/** Public privacy policy, served by the report worker. This is also the link in the store listings. */
+export const PRIVACY_URL = `${REPORT_SERVER_URL}/privacy`;
 
 /**
  * Shared key for signing report requests. Set EXPO_PUBLIC_REPORT_KEY in eas.json env (or .env) to

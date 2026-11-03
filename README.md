@@ -77,7 +77,7 @@ Live reports (speed traps and relayed camera sightings) are optional. Without a 
 5. `npx wrangler secret put REPORT_KEY` and paste a long random string (`openssl rand -hex 32`). This turns on request signing. Skip it to run open.
 6. `npm run deploy`. Note the `*.workers.dev` URL it prints. `GET /health` should answer `{"ok":true,"signing":true,...}`.
 7. Put that URL in the app under Settings, Speed trap server. Put the same random string in `EXPO_PUBLIC_REPORT_KEY` for every build that talks to this worker (a local `.env` for `expo start`; the project's EAS environment variables for `eas build`). A build whose key does not match gets a clear "rejected this build" message instead of a silent failure.
-8. Open `https://<your-worker>/privacy`, check the page, then set `PRIVACY_URL` in `src/config.ts` to that address so Settings and the disclosure screen link there, and use the same address in Play Console and App Store Connect.
+8. Open `https://<your-worker>/privacy`, check the page, then set `REPORT_SERVER_URL` in `src/config.ts` to the worker address. That makes it the default report server, and `PRIVACY_URL` (its `/privacy` page) the link in Settings, the disclosure screen, Play Console and App Store Connect. The live worker is https://flock-off.jonathankaschak.workers.dev, deployed by `.github/workflows/deploy-worker.yml` on every push that touches `worker/`.
 
 If you created the database before report kinds existed, apply `migrations/0002_kind.sql` instead of re-running `schema.sql`.
 

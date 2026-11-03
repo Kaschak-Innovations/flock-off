@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { useCallback, useEffect, useState } from 'react';
 
+import { REPORT_SERVER_URL } from '@/config';
+
 /**
  * User-tunable settings. Stored as one JSON blob in AsyncStorage so the background
  * tasks (which may run in their own JS context) read the same values as the UI.
@@ -50,7 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   limitDropMinMph: 15,
   directionAware: false,
   directionToleranceDeg: 50,
-  trapsApiUrl: '',
+  trapsApiUrl: REPORT_SERVER_URL,
   submitOsmNotes: true,
   alertSound: true,
   units: 'imperial',

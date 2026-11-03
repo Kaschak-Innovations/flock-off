@@ -13,11 +13,6 @@ import { isMonitoring, refreshGeofences } from '@/engine/geofence';
 import { currentPosition } from '@/engine/monitoring';
 import { useSettings } from '@/store/settings';
 
-function privacyUrl(trapsApiUrl: string): string {
-  const base = trapsApiUrl.trim().replace(/\/+$/, '');
-  return base ? `${base}/privacy` : PRIVACY_URL;
-}
-
 export default function SettingsScreen() {
   const [settings, update] = useSettings();
   const [busy, setBusy] = useState<string | null>(null);
@@ -127,7 +122,7 @@ export default function SettingsScreen() {
       </Group>
 
       <Group label="Data and privacy">
-        <Row label="Privacy policy" hint="What the app collects and what never leaves your phone." icon="open" onPress={() => Linking.openURL(privacyUrl(settings.trapsApiUrl))} />
+        <Row label="Privacy policy" hint="What the app collects and what never leaves your phone." icon="open" onPress={() => Linking.openURL(PRIVACY_URL)} />
         <Row label="Project page" hint="Source, issues and the camera tagging guide." icon="open" onPress={() => Linking.openURL(PROJECT_URL)} />
         <Row label="deflock.me" hint="The community map this app's camera data comes from." icon="open" onPress={() => Linking.openURL('https://deflock.me')} />
         <View style={{ paddingVertical: Spacing.md }}>

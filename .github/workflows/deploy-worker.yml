@@ -1,0 +1,99 @@
+# Deploys the report worker to Cloudflare on every push that touches it, or on demand.
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN  token with Workers Scripts:Edit and D1:Edit on the account
+#   REPORT_KEY            optional; request-signing key, same value as EXPO_PUBLIC_REPORT_KEY in the app build
+#
+# First run creates the D1 database and its tables. Later runs find the existing database and
+# reapply the schema, which is idempotent (CREATE ... IF NOT EXISTS).
+name: Deploy report worker
+
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", "docs/privacy-policy.html", ".github/workflows/deploy-worker.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DB_NAME: flock-off-traps
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Check the API token is set
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret first."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Find or create the D1 database
+        run: |
+          find_id() { npx wrangler d1 list --json | jq -r --arg n "$DB_NAME" '.[] | select(.name == $n) | .uuid' | head -1; }
+          id="$(find_id)"
+          if [ -z "$id" ]; then
+            echo "Creating D1 database $DB_NAME"
+            npx wrangler d1 create "$DB_NAME" < /dev/null
+            id="$(find_id)"
+          fi
+          if [ -z "$id" ]; then echo "::error::Could not find or create $DB_NAME"; exit 1; fi
+          echo "Using D1 database $id"
+          sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.jsonc
+          grep -q "$id" wrangler.jsonc
+
+      - name: Apply the schema
+        run: npx wrangler d1 execute "$DB_NAME" --remote --file=./schema.sql --yes
+
+      - name: Deploy
+        id: deploy
+        run: |
+          npx wrangler deploy 2>&1 | tee deploy.log
+          url="$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Set the signing key
+        env:
+          REPORT_KEY: ${{ secrets.REPORT_KEY }}
+        run: |
+          if [ -n "$REPORT_KEY" ]; then
+            printf '%s' "$REPORT_KEY" | npx wrangler secret put REPORT_KEY
+          else
+            echo "REPORT_KEY secret not set: the worker accepts unsigned requests."
+          fi
+
+      - name: Health check
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::No workers.dev URL in the deploy output. Enable the workers.dev subdomain in the Cloudflare dashboard."
+            exit 0
+          fi
+          sleep 5
+          health="$(curl -fsS "$URL/health")"
+          echo "$health"
+          {
+            echo "### Report worker deployed"
+            echo ""
+            echo "- URL: $URL"
+            echo "- Privacy policy: $URL/privacy"
+            echo "- Health: \`$health\`"
+          } >> "$GITHUB_STEP_SUMMARY"

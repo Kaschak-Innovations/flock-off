@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "flock-off-traps",
+  // Not a secret: account IDs identify, API tokens authorize.
+  "account_id": "aeb94d6d9eb1fd6e2705ac93cb7d8a49",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-03",
   "compatibility_flags": ["nodejs_compat"],

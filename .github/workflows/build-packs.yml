@@ -22,7 +22,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       RAW_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       KV_TITLE: flock-off-packs
@@ -58,7 +58,7 @@ jobs:
       - name: Build and upload packs
         env:
           STATES: ${{ inputs.states }}
-          BUDGET_MIN: "70"
+          BUDGET_MIN: "95"
         run: node scripts/build-packs.mjs packs-out $STATES
 
       - name: Summary

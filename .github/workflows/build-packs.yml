@@ -42,24 +42,33 @@ jobs:
           echo "::add-mask::$token"
           echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
 
-      - name: Build packs from OpenStreetMap
-        env:
-          STATES: ${{ inputs.states }}
-        run: node scripts/build-packs.mjs packs-out $STATES
-
       - run: npm ci
         working-directory: worker
 
-      - name: Upload to KV
+      - name: Find the KV namespace
         working-directory: worker
         run: |
           id="$(npx wrangler kv namespace list | sed -n '/^\[/,$p' | jq -r --arg t "$KV_TITLE" '.[] | select(.title == $t) | .id' | head -1)"
           if [ -z "$id" ]; then echo "::error::KV namespace $KV_TITLE not found. Run the deploy workflow first."; exit 1; fi
-          npx wrangler kv bulk put ../packs-out/kv.json --namespace-id "$id" --remote
+          echo "CF_KV_NAMESPACE=$id" >> "$GITHUB_ENV"
+          echo "CF_ACCOUNT_ID=$(grep -oE '"account_id": *"[0-9a-f]{32}"' wrangler.jsonc | grep -oE '[0-9a-f]{32}')" >> "$GITHUB_ENV"
+
+      # Uploads each state to KV as soon as it is built and stops starting new states after
+      # BUDGET_MIN minutes, so a slow Overpass night still publishes what it finished.
+      - name: Build and upload packs
+        env:
+          STATES: ${{ inputs.states }}
+          BUDGET_MIN: "70"
+        run: node scripts/build-packs.mjs packs-out $STATES
+
+      - name: Summary
+        if: always()
+        run: |
+          [ -f packs-out/index.json ] || exit 0
           {
-            echo "### Trip packs uploaded"
+            echo "### Trip packs"
             echo ""
-            jq -r '"\(.states | length) states, \([.states[].count] | add) cameras. Failed: \(.failed | join(" "))"' ../packs-out/index.json
+            jq -r '"\(.states | length) states published, \([.states[].count] | add // 0) cameras. Failed this run: \(.failed | join(" "))"' packs-out/index.json
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
